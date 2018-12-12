@@ -3,6 +3,10 @@
 #include <stdio.h>
 #include "driver/i2c.h"
 
+// registers of the ADS7142 //
+#include "ADS7142.h"
+
+
 // i2c //
 #define I2C_EXAMPLE_MASTER_SCL_IO          25               /*!< gpio number for I2C master clock */
 #define I2C_EXAMPLE_MASTER_SDA_IO          26               /*!< gpio number for I2C master data  */
@@ -36,7 +40,76 @@
 #define GPIO_OUTPUT_PIN_SEL  ((1ULL<<SQUARE_SIGNAL_PIN) | (1ULL<<SQUARE_SIGNAL_PIN))
 
 
+static esp_err_t ADS7142_reg_write(uint8_t reg, uint8_t val){
+  int ret = 0;
+  uint8_t n = 0;    // counter to make several readings.
+  i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+  printf("w reg ADS7142\n");
 
+  gpio_set_level(SQUARE_SIGNAL_PIN, 1); // TO MEASURE TASK TIME //
+  cmd = i2c_cmd_link_create();
+  i2c_master_start(cmd);
+  i2c_master_write_byte(cmd, ADS7142_I2C_ADDR << 1 | WRITE_BIT, ACK_CHECK_EN);      // read slave address
+  i2c_master_write_byte(cmd, SINGLE_WRITE, ACK_CHECK_EN);      // read slave address
+  i2c_master_write_byte(cmd, reg, ACK_CHECK_EN);                            // slave register
+  i2c_master_write_byte(cmd, val, ACK_CHECK_EN);                                  // slave register
+  i2c_master_stop(cmd);
+  ret = i2c_master_cmd_begin(I2C_PORT_A, cmd, 1000 / portTICK_RATE_MS);
+  gpio_set_level(SQUARE_SIGNAL_PIN, 0);   // TO MEASURE TASK TIME //
+  i2c_cmd_link_delete(cmd);
+
+
+  return(ret);
+
+}
+static esp_err_t ADS7142_reg_read(uint8_t reg){
+  int ret = 0;
+  uint8_t val = 0;
+  static uint32_t count = 0;
+  i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+  // INITIALIZATION OF THE DEVICE PART 1//
+  printf("r reg ADS7142\n");
+
+  gpio_set_level(SQUARE_SIGNAL_PIN, 1); // TO MEASURE TASK TIME //
+
+  cmd = i2c_cmd_link_create();
+  i2c_master_start(cmd);
+
+  i2c_master_write_byte(cmd, ADS7142_I2C_ADDR << 1 | WRITE_BIT, ACK_CHECK_EN);      // read slave address
+  i2c_master_write_byte(cmd, reg, ACK_CHECK_EN);                                    // slave register
+  i2c_master_write_byte(cmd, SINGLE_READ, ACK_CHECK_EN);                            // slave register
+
+  i2c_master_start(cmd);
+  i2c_master_write_byte(cmd, ADS7142_I2C_ADDR << 1 | READ_BIT, ACK_CHECK_EN);       // read slave address
+  i2c_master_read_byte(cmd, &val, ACK_CHECK_EN);                                    // slave register
+
+  i2c_master_stop(cmd);
+
+  ret = i2c_master_cmd_begin(I2C_PORT_A, cmd, 1000 / portTICK_RATE_MS);
+  //vTaskDelay(10);   // this should give the control to another task while the i2c thingie is executed
+  i2c_cmd_link_delete(cmd);
+
+  gpio_set_level(SQUARE_SIGNAL_PIN, 0); // TO MEASURE TASK TIME //
+
+  printf("%d\n",count);    // i2c crashing--> always ath the same place?
+  count += 1;
+
+  return(ret);
+
+}
+
+
+// struct for the CAP1188: //
+typedef struct str_cap1188 {
+  uint8_t i2c_por;
+  //uint8_t i2c_port = I2C_PORT_A;
+  //uint8_t i2c_address = CAP_1188_I2C_ADDR;
+  //void (*CAP1188_write)
+
+} cap1188;
+
+cap1188 touch_sensor;
+//touch_sensor.i2c_port = 1;
 // i2c //
 static esp_err_t CAP1188_write(){
   int ret = 0;
@@ -54,7 +127,6 @@ static esp_err_t CAP1188_write(){
   ret = i2c_master_cmd_begin(I2C_PORT_A, cmd, 1000 / portTICK_RATE_MS);
   gpio_set_level(SQUARE_SIGNAL_PIN, 0);   // TO MEASURE TASK TIME //
   i2c_cmd_link_delete(cmd);
-
 
 
   return(ret);
@@ -240,8 +312,11 @@ TaskHandle_t i2c_handle;
 static void i2c_task() {
   while(1){
     uint8_t data = 0;
-    CAP1188_write();      // writes simple command i2c bus
-    CAP1188_read();
+    ADS7142_reg_write(0x00, 0x00);    // write register 0 with all zeroes.
+    ADS7142_reg_read(0x00);    // write register 0 with all zeroes.
+
+    //CAP1188_write();      // writes simple command i2c bus
+    //CAP1188_read();
 
     vTaskDelay(1);  // returns the execution to the scheduler for 100ms
   }
