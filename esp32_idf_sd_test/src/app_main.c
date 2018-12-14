@@ -224,7 +224,6 @@ static void sd_task() {
   static uint32_t n;
 
   static uint32_t fnum = 0;
-  static char buffer[10];    // to make a string out of the file number.
 
 
     // SD CARD INIT STUFF //
@@ -267,7 +266,7 @@ static void sd_task() {
   // formatted in case when mounting fails.
   esp_vfs_fat_sdmmc_mount_config_t mount_config = {
       .format_if_mount_failed = false,
-      .max_files = 5,
+      .max_files = 10,
       .allocation_unit_size = 16 * 1024
   };
 
@@ -347,21 +346,44 @@ static void sd_task() {
     esp_err_t ret = esp_vfs_fat_sdmmc_mount("/sdcard", &host, &slot_config, &mount_config, &card);
     // create a new file:
     ESP_LOGI(TAG, "Opening file");
-    itoa(fnum,buffer,10);                         //takes fnum number, transforms it into a string, stores in buffer, number in base 10.
-    //char path[] = "/sdcard/filePenis";
-    FILE* f = fopen("/sdcard/file.txt", "w");
+
+// THIS IS TO CREATE A FULL NEW PATH AND NAME FOR THE FILE /////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+    static char fileNum[10];    // to make a string out of the file number.
+    itoa(fnum,fileNum,10);                         //takes fnum number, transforms it into a string, stores in buffer, number in base 10.
+    printf(fileNum);
+    printf("\n");
+    char path[] = "/sdcard/_";
+    //const char *line1 = "hello";
+    //const char *line2 = "world";
+
+    size_t l1 = strlen(path);
+    size_t l2 = strlen(fileNum);
+
+char *fullPath = malloc(l1 + l2 + 1);
+if (!fullPath) abort();
+
+memcpy(fullPath,        path, l1);
+memcpy(fullPath + l1, fileNum, l2);
+fullPath[l1 + l2] = '\0';
+
+////////////////////////////////////////////////////////////////////////////////
+
+    FILE* f = fopen(fullPath, "w");
     if (f == NULL) {
         ESP_LOGE(TAG, "Failed to open file for writing");
         return;
     }
     fprintf(f, "Hello %s!\n", card->cid.name);
     fclose(f);
+    fnum += 1;                      // increases the file index
     ESP_LOGI(TAG, "File written");
 
 
 
 
-    vTaskDelay(5000);  // returns the execution to the scheduler for 100ms
+    vTaskDelay(500);  // returns the execution to the scheduler for 100ms
   }
 }
 
